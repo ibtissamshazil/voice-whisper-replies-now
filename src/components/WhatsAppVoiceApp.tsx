@@ -1,26 +1,53 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import VoiceOverlay from './VoiceOverlay';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, Mic, Smartphone, Users, Accessibility } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import ChatList, { ChatSummary } from './ChatList';
+import ChatWindow, { MessageItem } from './ChatWindow';
+
+const seedMessages: Record<string, MessageItem[]> = {
+  Sam: [
+    { id: 's1', from: 'them', text: 'Hey! Are you joining the meeting?', timestamp: Date.now() - 1000 * 60 * 45 },
+    { id: 's2', from: 'me', text: 'Yes, on my way!', timestamp: Date.now() - 1000 * 60 * 40 },
+    { id: 's3', from: 'them', text: 'Great, see you soon.', timestamp: Date.now() - 1000 * 60 * 35 },
+  ],
+  John: [
+    { id: 'j1', from: 'them', text: 'Lunch today?', timestamp: Date.now() - 1000 * 60 * 90 },
+    { id: 'j2', from: 'me', text: "Can't today, sorry.", timestamp: Date.now() - 1000 * 60 * 60 },
+    { id: 'j3', from: 'them', text: 'No worries, maybe tomorrow.', timestamp: Date.now() - 1000 * 60 * 50 },
+  ],
+};
 
 const WhatsAppVoiceApp: React.FC = () => {
   const [isOverlayVisible, setIsOverlayVisible] = useState(false);
   const [isWhatsAppDetected, setIsWhatsAppDetected] = useState(false);
   const [permissionsGranted, setPermissionsGranted] = useState(false);
 
+  const [activeChat, setActiveChat] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Record<string, MessageItem[]>>(seedMessages);
+
+  const chats: ChatSummary[] = useMemo(() => {
+    const names = Object.keys(chatMessages);
+    return names.map((name) => {
+      const list = chatMessages[name] ?? [];
+      const last = list[list.length - 1];
+      return {
+        name,
+        lastMessage: last ? last.text : 'No messages yet',
+      };
+    });
+  }, [chatMessages]);
+
   useEffect(() => {
-    // Simulate WhatsApp detection
     const checkWhatsApp = () => {
-      // In a real implementation, this would detect if WhatsApp is active
       setIsWhatsAppDetected(true);
     };
 
     checkWhatsApp();
     
-    // Auto-show overlay when WhatsApp is detected
     if (isWhatsAppDetected && permissionsGranted) {
       setIsOverlayVisible(true);
     }
@@ -34,6 +61,49 @@ const WhatsAppVoiceApp: React.FC = () => {
     } catch (error) {
       alert('Microphone permission is required for voice commands');
     }
+  };
+
+  const handleOpenChat = (name: string) => {
+    if (!chatMessages[name]) {
+      setChatMessages((prev) => ({ ...prev, [name]: [] }));
+    }
+    setActiveChat(name);
+  };
+
+  const handleSend = (text: string) => {
+    if (!activeChat) return;
+    const newItem: MessageItem = {
+      id: `${activeChat}-${Date.now()}`,
+      from: 'me',
+      text,
+      timestamp: Date.now(),
+    };
+    setChatMessages((prev) => {
+      const list = prev[activeChat] ?? [];
+      const next = { ...prev, [activeChat]: [...list, newItem] };
+      return next;
+    });
+  };
+
+  const handleReplyTo = (contact: string, messageIndex: number) => {
+    // messageIndex: 1 = last, 2 = second last, etc.
+    const list = chatMessages[contact] ?? [];
+    if (list.length === 0) {
+      handleOpenChat(contact);
+      return;
+    }
+    const idx = Math.max(0, list.length - messageIndex);
+    const target = list[idx];
+    handleOpenChat(contact);
+    // Pre-fill a reply to target message (simple behavior: send a canned reply)
+    const reply = `Re: "${target?.text ?? ''}"`;
+    setTimeout(() => {
+      handleSend(reply);
+    }, 300);
+  };
+
+  const handleBack = () => {
+    setActiveChat(null);
   };
 
   const features = [
@@ -108,21 +178,14 @@ const WhatsAppVoiceApp: React.FC = () => {
           </Card>
         </div>
 
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {features.map((feature, index) => (
-            <Card key={index} className="text-center hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex justify-center mb-2">
-                  {feature.icon}
-                </div>
-                <CardTitle className="text-lg">{feature.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription>{feature.description}</CardDescription>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Chat UI */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <div className="md:col-span-1">
+            <ChatList chats={chats} activeChatName={activeChat} onSelectChat={handleOpenChat} />
+          </div>
+          <div className="md:col-span-2">
+            <ChatWindow contactName={activeChat} messages={activeChat ? (chatMessages[activeChat] ?? []) : []} onSend={handleSend} />
+          </div>
         </div>
 
         {/* Action Button */}
@@ -186,6 +249,10 @@ const WhatsAppVoiceApp: React.FC = () => {
         isVisible={isOverlayVisible}
         onHide={() => setIsOverlayVisible(false)}
         onShow={() => setIsOverlayVisible(true)}
+        onOpenChat={handleOpenChat}
+        onReplyTo={handleReplyTo}
+        onSendMessage={handleSend}
+        onBack={handleBack}
       />
     </div>
   );

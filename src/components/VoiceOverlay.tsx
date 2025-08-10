@@ -9,9 +9,13 @@ interface VoiceOverlayProps {
   isVisible: boolean;
   onHide: () => void;
   onShow: () => void;
+  onOpenChat?: (chatName: string) => void;
+  onReplyTo?: (contact: string, messageIndex: number) => void;
+  onSendMessage?: (message: string) => void;
+  onBack?: () => void;
 }
 
-const VoiceOverlay: React.FC<VoiceOverlayProps> = ({ isVisible, onHide, onShow }) => {
+const VoiceOverlay: React.FC<VoiceOverlayProps> = ({ isVisible, onHide, onShow, onOpenChat, onReplyTo, onSendMessage, onBack }) => {
   const [isListening, setIsListening] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -69,16 +73,16 @@ const VoiceOverlay: React.FC<VoiceOverlayProps> = ({ isVisible, onHide, onShow }
     
     // Navigation commands
     if (lowerCommand.includes('go back')) {
-      simulateNavigationCommand('back');
+      if (onBack) onBack();
     } else if (lowerCommand.includes('go to') && lowerCommand.includes('chat')) {
       const chatName = extractChatName(lowerCommand);
-      simulateNavigationCommand('openChat', chatName);
+      if (chatName && onOpenChat) onOpenChat(capitalize(chatName));
     } else if (lowerCommand.includes('reply to')) {
       const replyContext = extractReplyContext(lowerCommand);
-      simulateReplyCommand(replyContext);
+      if (replyContext.contact && onReplyTo) onReplyTo(capitalize(replyContext.contact), replyContext.messageIndex);
     } else if (lowerCommand.includes('send message')) {
       const message = extractMessage(lowerCommand);
-      simulateSendMessage(message);
+      if (message && onSendMessage) onSendMessage(message);
     } else if (lowerCommand.includes('hide overlay')) {
       onHide();
     }
@@ -113,21 +117,7 @@ const VoiceOverlay: React.FC<VoiceOverlayProps> = ({ isVisible, onHide, onShow }
     return match ? match[1] : '';
   };
 
-  const simulateNavigationCommand = (action: string, target?: string) => {
-    console.log(`Navigation: ${action}${target ? ` to ${target}` : ''}`);
-    // Here you would integrate with WhatsApp's interface
-    // This is a simulation for the demo
-  };
-
-  const simulateReplyCommand = (context: { contact: string; messageIndex: number }) => {
-    console.log(`Replying to message ${context.messageIndex} from ${context.contact}`);
-    // Here you would integrate with WhatsApp's interface
-  };
-
-  const simulateSendMessage = (message: string) => {
-    console.log(`Sending message: ${message}`);
-    // Here you would integrate with WhatsApp's interface
-  };
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   const startListening = async () => {
     if (recognitionRef.current) {
